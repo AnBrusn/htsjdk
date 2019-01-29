@@ -30,10 +30,13 @@ import htsjdk.samtools.util.RuntimeIOException;
 import htsjdk.tribble.index.Block;
 import htsjdk.tribble.index.Index;
 import htsjdk.tribble.index.IndexFactory;
+import htsjdk.tribble.index.tabix.TabixIndex;
 import htsjdk.tribble.readers.PositionalBufferedStream;
 import htsjdk.tribble.util.ParsingUtils;
+import htsjdk.variant.vcf.VCFCodec;
 
 import java.io.BufferedInputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -166,6 +169,17 @@ public class TribbleIndexedFeatureReader<T extends Feature, SOURCE> extends Abst
             indexFile = ParsingUtils.appendToPath(indexFile, ".gz");
             if (ParsingUtils.resourceExists(indexFile)) {
                 index = IndexFactory.loadIndex(indexFile, indexWrapper);
+            } else {
+                //if there is no index we create it
+                final File inputVCF = new File(this.path.replace("file://", ""));
+
+                final TabixIndex tabixIndexGz = IndexFactory.createTabixIndex(inputVCF, new VCFCodec(), null);
+                tabixIndexGz.writeBasedOnFeatureFile(inputVCF);
+                final File tmpIndex = Tribble.tabixIndexFile(inputVCF);
+                tmpIndex.deleteOnExit();
+
+                indexFile = tmpIndex.getAbsolutePath();
+                index = IndexFactory.loadIndex(indexFile);
             }
         }
         this.needCheckForIndex = false;
